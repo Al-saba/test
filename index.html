@@ -292,11 +292,7 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
-  // Anonymous provider er poriborte Email/Password use korchi
-  // (ESP32 er jonno already banano user diyei website login korbe)
-  const WEBSITE_LOGIN_EMAIL = "alsaba@gmail.com";
-  const WEBSITE_LOGIN_PASSWORD = "123456";
-
+  // Anonymous sign-in - Firebase Console e Anonymous provider enabled thakte hobe
   const connDot = document.getElementById('connDot');
   const connText = document.getElementById('connText');
 
@@ -361,7 +357,7 @@
     }
   });
 
-  firebase.auth().signInWithEmailAndPassword(WEBSITE_LOGIN_EMAIL, WEBSITE_LOGIN_PASSWORD).catch((err) => {
+  firebase.auth().signInAnonymously().catch((err) => {
     console.error("Auth error:", err);
     connText.textContent = "Login ব্যর্থ";
   });
