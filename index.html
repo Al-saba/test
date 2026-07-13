@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Soil Moisture Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --soil-deepest: #1c130d;
+    --soil-dark: #2e1f14;
+    --soil-mid: #4a3220;
+    --soil-light: #6f4c2f;
+    --clay: #a97452;
+    --moss: #7f9165;
+    --water: #4f8fc0;
+    --water-bright: #7cc4e8;
+    --parchment: #ede3d3;
+    --parchment-dim: #b7a992;
+    --font-display: 'Fraunces', serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--soil-deepest);
+    color: var(--parchment);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* layered strata background */
+  .strata {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background:
+      linear-gradient(180deg,
+        var(--soil-deepest) 0%,
+        var(--soil-deepest) 12%,
+        var(--soil-dark) 12%, var(--soil-dark) 40%,
+        var(--soil-mid) 40%, var(--soil-mid) 68%,
+        var(--soil-light) 68%, var(--soil-light) 100%);
+    opacity: 0.9;
+  }
+  .strata::after{
+    content:"";
+    position:absolute; inset:0;
+    background-image: radial-gradient(circle at 20% 30%, rgba(0,0,0,0.25) 0 2px, transparent 3px),
+                       radial-gradient(circle at 65% 55%, rgba(0,0,0,0.2) 0 2px, transparent 3px),
+                       radial-gradient(circle at 85% 20%, rgba(0,0,0,0.18) 0 2px, transparent 3px),
+                       radial-gradient(circle at 40% 80%, rgba(0,0,0,0.2) 0 2px, transparent 3px);
+    background-size: 260px 260px;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 56px 24px 80px;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 1px solid rgba(237,227,211,0.18);
+    padding-bottom: 20px;
+    margin-bottom: 48px;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--water-bright);
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(28px, 4.5vw, 42px);
+    margin-top: 6px;
+    color: var(--parchment);
+  }
+
+  .status-pill {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 100px;
+    border: 1px solid rgba(237,227,211,0.25);
+    color: var(--parchment-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--moss); }
+  .dot.offline { background: #b05c4a; }
+
+  main {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 40px;
+  }
+
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  /* ---- signature element: buried probe / water column ---- */
+  .probe-panel {
+    background: rgba(28,19,13,0.55);
+    border: 1px solid rgba(237,227,211,0.12);
+    border-radius: 14px;
+    padding: 28px;
+    display: flex;
+    gap: 28px;
+    align-items: center;
+  }
+
+  .probe-svg-holder { flex-shrink: 0; }
+
+  .probe-readout .label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--parchment-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .big-number {
+    font-family: var(--font-display);
+    font-size: clamp(56px, 9vw, 88px);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--water-bright);
+    margin: 4px 0 8px;
+  }
+  .big-number sup { font-size: 0.35em; top: -0.5em; color: var(--parchment-dim); }
+
+  .condition {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--parchment);
+    margin-bottom: 4px;
+  }
+
+  .updated {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--parchment-dim);
+  }
+
+  /* stat cards */
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .stat-card {
+    background: rgba(28,19,13,0.55);
+    border: 1px solid rgba(237,227,211,0.12);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .stat-card .label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--parchment-dim);
+    margin-bottom: 10px;
+  }
+  .stat-card .value {
+    font-family: var(--font-mono);
+    font-size: 28px;
+    color: var(--parchment);
+  }
+
+  .history {
+    grid-column: 1 / -1;
+    background: rgba(28,19,13,0.55);
+    border: 1px solid rgba(237,227,211,0.12);
+    border-radius: 14px;
+    padding: 24px;
+  }
+  .history .label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--parchment-dim);
+    margin-bottom: 16px;
+  }
+
+  footer {
+    margin-top: 56px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--parchment-dim);
+    text-align: center;
+  }
+
+  /* water fill animation */
+  #waterFill {
+    transition: y 0.8s ease, height 0.8s ease;
+  }
+</style>
+</head>
+<body>
+
+<div class="strata"></div>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">ESP32-S3 · Realtime Feed</div>
+      <h1>মাটির আর্দ্রতা</h1>
+    </div>
+    <div class="status-pill"><span class="dot offline" id="connDot"></span><span id="connText">সংযোগ হচ্ছে...</span></div>
+  </header>
+
+  <main>
+    <section class="probe-panel">
+      <div class="probe-svg-holder">
+        <svg width="90" height="200" viewBox="0 0 90 200" xmlns="http://www.w3.org/2000/svg">
+          <!-- soil tube -->
+          <rect x="10" y="10" width="70" height="180" rx="10" fill="#2e1f14" stroke="#6f4c2f" stroke-width="2"/>
+          <!-- strata lines -->
+          <line x1="10" y1="60" x2="80" y2="60" stroke="#4a3220" stroke-width="1.5" opacity="0.7"/>
+          <line x1="10" y1="110" x2="80" y2="110" stroke="#4a3220" stroke-width="1.5" opacity="0.7"/>
+          <line x1="10" y1="150" x2="80" y2="150" stroke="#4a3220" stroke-width="1.5" opacity="0.7"/>
+          <!-- water fill (height/y set by JS) -->
+          <rect id="waterFill" x="14" y="185" width="62" height="0" rx="6" fill="#4f8fc0" opacity="0.75"/>
+          <!-- probe rod -->
+          <line x1="45" y1="0" x2="45" y2="45" stroke="#a97452" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="45" cy="45" r="7" fill="#ede3d3"/>
+        </svg>
+      </div>
+      <div class="probe-readout">
+        <div class="label">বর্তমান আর্দ্রতা</div>
+        <div class="big-number" id="moisturePct">--<sup>%</sup></div>
+        <div class="condition" id="conditionText">অপেক্ষা করছি...</div>
+        <div class="updated" id="lastUpdated">শেষ আপডেট: --</div>
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="stat-card">
+        <div class="label">Raw ADC Value</div>
+        <div class="value" id="rawValue">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Digital State</div>
+        <div class="value" id="digitalValue">--</div>
+      </div>
+      <div class="stat-card" style="grid-column: 1 / -1;">
+        <div class="label">Device Timestamp (s)</div>
+        <div class="value" id="timestampValue">--</div>
+      </div>
+    </section>
+  </main>
+
+  <footer>ESP32-S3 Soil Moisture Dashboard · Firebase Realtime Database · GitHub Pages</footer>
+</div>
+
+<!-- Firebase SDK (compat, easiest for plain HTML) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+<script>
+  // ---------- Firebase config ----------
+  const firebaseConfig = {
+    apiKey: "AIzaSyCQMuxp2gJDaal-QANUAgsWuAeDO8807Ws",
+    authDomain: "soil-31f95.firebaseapp.com",
+    databaseURL: "https://soil-31f95-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "soil-31f95",
+    storageBucket: "soil-31f95.firebasestorage.app",
+    messagingSenderId: "342682406099",
+    appId: "1:342682406099:web:3d183d1c6d090b4ad5d826"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // Anonymous provider er poriborte Email/Password use korchi
+  // (ESP32 er jonno already banano user diyei website login korbe)
+  const WEBSITE_LOGIN_EMAIL = "alsaba@gmail.com";
+  const WEBSITE_LOGIN_PASSWORD = "এখানে_আপনার_পাসওয়ার্ড_বসান";
+
+  const connDot = document.getElementById('connDot');
+  const connText = document.getElementById('connText');
+
+  const moistureEl = document.getElementById('moisturePct');
+  const conditionEl = document.getElementById('conditionText');
+  const rawEl = document.getElementById('rawValue');
+  const digitalEl = document.getElementById('digitalValue');
+  const tsEl = document.getElementById('timestampValue');
+  const updatedEl = document.getElementById('lastUpdated');
+  const waterFill = document.getElementById('waterFill');
+
+  const TUBE_TOP = 15;     // svg y where fill can start (near top of tube interior)
+  const TUBE_BOTTOM = 185; // svg y at bottom of tube interior
+
+  function updateWater(percent) {
+    const maxHeight = TUBE_BOTTOM - TUBE_TOP;
+    const h = (percent / 100) * maxHeight;
+    waterFill.setAttribute('y', TUBE_BOTTOM - h);
+    waterFill.setAttribute('height', h);
+  }
+
+  function conditionLabel(percent) {
+    if (percent < 30) return "শুকনো — পানি দিন";
+    if (percent < 60) return "মাঝারি আর্দ্র";
+    return "যথেষ্ট ভেজা";
+  }
+
+  // Login shesh howar PORE database listener attach kora hocche, tai
+  // permission_denied race condition r hobe na.
+  function startListeningToDatabase() {
+    db.ref(".info/connected").on("value", (snap) => {
+      if (snap.val() === true) {
+        connDot.classList.remove('offline');
+        connText.textContent = "লাইভ সংযুক্ত";
+      } else {
+        connDot.classList.add('offline');
+        connText.textContent = "সংযোগ বিচ্ছিন্ন";
+      }
+    });
+
+    db.ref('/soil_moisture/latest').on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+
+      const pct = data.moisture_percent ?? 0;
+      moistureEl.innerHTML = pct + "<sup>%</sup>";
+      conditionEl.textContent = conditionLabel(pct);
+      rawEl.textContent = data.raw ?? "--";
+      digitalEl.textContent = data.digital_state === 1 ? "HIGH" : "LOW";
+      tsEl.textContent = data.timestamp ?? "--";
+      updatedEl.textContent = "শেষ আপডেট: " + new Date().toLocaleTimeString('bn-BD');
+      updateWater(pct);
+    }, (err) => {
+      console.error("Read failed:", err);
+      connText.textContent = "Data পড়া যায়নি";
+    });
+  }
+
+  firebase.auth().onAuthStateChanged((user) => {
+    if (user) {
+      startListeningToDatabase();
+    }
+  });
+
+  firebase.auth().signInWithEmailAndPassword(WEBSITE_LOGIN_EMAIL, WEBSITE_LOGIN_PASSWORD).catch((err) => {
+    console.error("Auth error:", err);
+    connText.textContent = "Login ব্যর্থ";
+  });
+</script>
+
+</body>
+</html>
